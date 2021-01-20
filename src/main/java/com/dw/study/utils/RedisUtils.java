@@ -29,6 +29,8 @@ public class RedisUtils {
     private RedisTemplate<String, Object> redisTemplate;
 
 
+
+    // ======================【设置值】===================================
     /**
      * 设置缓存
      *
@@ -169,6 +171,26 @@ public class RedisUtils {
     public long getExpire(String key) {
         return redisTemplate.getExpire(key, TimeUnit.SECONDS);
     }
+
+    /**
+     * 指定缓存失效时间
+     *
+     * @param key  键
+     * @param time 时间(秒)
+     * @return
+     */
+    public boolean expire(String key, long time) {
+        try {
+            if (time > 0) {
+                redisTemplate.expire(key, time, TimeUnit.SECONDS);
+            }
+            return true;
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return false;
+        }
+    }
+
 
 
 
