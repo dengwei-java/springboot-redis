@@ -184,14 +184,19 @@ public class RedisUtils {
      *
      * @param key
      */
-    public void del(String... key) {
+    public boolean del(String... key) {
         if (key != null && key.length > 0) {
             if (key.length == 1) {
-                redisTemplate.delete(key[0]);
+                return redisTemplate.delete(key[0]);
             } else {
-                redisTemplate.delete(Arrays.asList(key));
+                Long delete = redisTemplate.delete(Arrays.asList(key));
+                if(delete > 0){
+                    return true;
+                }
+                return false;
             }
         }
+        return false;
     }
 
     /**
