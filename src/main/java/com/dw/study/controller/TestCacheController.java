@@ -30,9 +30,25 @@ public class TestCacheController {
      * value 指定将方法的返回结果放在哪个缓存中，可以指定多个，用大括号保存
      * @return
      */
-    @RequestMapping("addCache")
-    @Cacheable(value = "001")
+    @RequestMapping("addCache1")
+    @Cacheable(value = "cacheName1")
     public String testAddCache(Integer count){
+        log.info("如果我被打印，并且count=2,说明没有走缓存");
+        count += 1;
+        return "count==" + count;
+    }
+
+    @RequestMapping("addCache2")
+    @Cacheable(value = "cacheName2")
+    public String testAddCache2(Integer count){
+        log.info("如果我被打印，并且count=2,说明没有走缓存");
+        count += 1;
+        return "count==" + count;
+    }
+
+    @RequestMapping("addCache3")
+    @Cacheable(value = "cacheName3")
+    public String testAddCache3(Integer count){
         log.info("如果我被打印，并且count=2,说明没有走缓存");
         count += 1;
         return "count==" + count;
