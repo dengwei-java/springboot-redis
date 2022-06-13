@@ -95,6 +95,22 @@ public class RedisLockUtil {
     }
 
     /**
+     * 尝试获取锁
+     *
+     * @param lockKey
+     * @param time  最多等待时间秒
+     * @return
+     */
+    public boolean tryLock(String lockKey, long time) {
+        RLock lock = redissonClient.getLock(lockKey);
+        try {
+            return lock.tryLock(time, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            return false;
+        }
+    }
+
+    /**
      * 释放锁
      *
      * @param lockKey
