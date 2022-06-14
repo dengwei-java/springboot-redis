@@ -2,6 +2,8 @@ package com.dw.study.utils;
 
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +18,13 @@ import java.util.concurrent.TimeUnit;
  */
 @Component
 public class RedisLockUtil {
+
+    private static final Logger logger = LoggerFactory.getLogger(RedisLockUtil.class);
+
+    /**
+     * 默认锁过期时间
+     */
+    private static final Long EXPIRE_TIME = 60L;
 
     @Autowired
     private RedissonClient redissonClient;
@@ -71,8 +80,10 @@ public class RedisLockUtil {
     public boolean tryLock(String lockKey, TimeUnit unit, long waitTime, long leaseTime) {
         RLock lock = redissonClient.getLock(lockKey);
         try {
+            logger.info("尝试获取分布式锁： {}", lockKey);
             return lock.tryLock(waitTime, leaseTime, unit);
         } catch (InterruptedException e) {
+            logger.error("获取分布式锁失败！");
             return false;
         }
     }
@@ -88,8 +99,10 @@ public class RedisLockUtil {
     public boolean tryLock(String lockKey, long waitTime, long leaseTime) {
         RLock lock = redissonClient.getLock(lockKey);
         try {
+            logger.info("尝试获取分布式锁： {}", lockKey);
             return lock.tryLock(waitTime, leaseTime, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
+            logger.error("获取分布式锁失败！");
             return false;
         }
     }
@@ -98,14 +111,33 @@ public class RedisLockUtil {
      * 尝试获取锁
      *
      * @param lockKey
-     * @param time  最多等待时间秒
+     * @param time    最多等待时间秒
      * @return
      */
     public boolean tryLock(String lockKey, long time) {
         RLock lock = redissonClient.getLock(lockKey);
         try {
+            logger.info("尝试获取分布式锁： {}", lockKey);
             return lock.tryLock(time, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
+            logger.error("获取分布式锁失败！");
+            return false;
+        }
+    }
+
+    /**
+     * 尝试获取锁, 默认等待 60s
+     *
+     * @param lockKey
+     * @return
+     */
+    public boolean tryLock(String lockKey) {
+        RLock lock = redissonClient.getLock(lockKey);
+        try {
+            logger.info("尝试获取分布式锁： {}", lockKey);
+            return lock.tryLock(EXPIRE_TIME, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            logger.error("获取分布式锁失败: {}", lockKey);
             return false;
         }
     }

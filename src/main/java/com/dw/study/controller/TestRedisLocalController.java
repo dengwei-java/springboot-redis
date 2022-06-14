@@ -26,13 +26,17 @@ public class TestRedisLocalController {
     @RequestMapping("testLocal")
     public String testLocal() {
         System.out.println("开始获取锁。。。。。");
-        RLock lock = redisLockUtil.lock("test:" + key);
+        String lockKey = "test:" + key;
+        boolean b = redisLockUtil.tryLock(lockKey);
+        if (!b) {
+            throw new RuntimeException("获取分布式锁失败！");
+        }
         try {
             TimeUnit.SECONDS.sleep(10);
         } catch (InterruptedException e) {
             e.printStackTrace();
         } finally {
-            lock.unlock();
+            redisLockUtil.unlock(lockKey);
             System.out.println("释放锁。。。。。");
         }
         return "操作成功";
