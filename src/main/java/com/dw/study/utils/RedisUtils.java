@@ -1,13 +1,15 @@
 package com.dw.study.utils;
 
+import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.geo.*;
+import org.springframework.data.geo.Circle;
+import org.springframework.data.geo.Distance;
+import org.springframework.data.geo.GeoResults;
+import org.springframework.data.geo.Point;
 import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.TimeToLive;
-import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -190,7 +192,7 @@ public class RedisUtils {
                 return redisTemplate.delete(key[0]);
             } else {
                 Long delete = redisTemplate.delete(Arrays.asList(key));
-                if(delete > 0){
+                if (delete > 0) {
                     return true;
                 }
                 return false;
@@ -645,42 +647,65 @@ public class RedisUtils {
     // ##########################【操作经纬度】#####################################################
 
     /***
-     * 将指定的地理空间位置（纬度、经度、名称）添加到指定的key中。
+     * 将指定的地理空间位置（纬度、经度、名称）添加到指定的key中(添加单个经纬度)。
+     * 命令行命令： GEOADD key longitude latitude member [longitude latitude member ...]
      * @param key redis的key
      * @param longitude   经度
      * @param latitude   纬度
-     * @param name  该坐标的名称（标识）
+     * @param member  该坐标的名称（标识）
      * @return
      */
-    public Long geoAdd(String key, double longitude, double latitude, String name) {
+    public Long geoAdd(String key, double longitude, double latitude, String member) {
 //        Long addedNum = redisTemplate.opsForGeo().add("city", new Point(116.405285, 39.904989), "北京");
-        Long addedNum = redisTemplate.opsForGeo().add(key, new Point(longitude, latitude), name);
-        return addedNum;
+        return redisTemplate.opsForGeo().add(key, new Point(longitude, latitude), member);
     }
 
     /***
-     * 从key里返回所有给定位置元素的位置（经度和纬度）。
+     * 将指定的地理空间位置（纬度、经度、名称）添加到指定的key中(批量添加经纬度)。
      * @param key redis的key
-     * @param nameList 坐标名称（标识）的集合
+     * @param geoLocationList  批量添加的经纬度
+     * @return
      */
-    public List<Point> geoGet(String key, List<String> nameList) {
-        List<Point> points = redisTemplate.opsForGeo().position(key, nameList);
-        return points;
+    public Long geoBatchAdd(String key, List<BizGeoLocation> geoLocationList) {
+        if (CollectionUtils.isEmpty(geoLocationList)) {
+            return 0L;
+        }
+        List<RedisGeoCommands.GeoLocation<Object>> locations = new ArrayList<>(geoLocationList.size());
+        for (BizGeoLocation geoLocation : geoLocationList) {
+            locations.add(new RedisGeoCommands.GeoLocation<Object>(geoLocation.getBizKey(), new Point(geoLocation.getLongitude(), geoLocation.getLatitude())));
+        }
+        return redisTemplate.opsForGeo().add(key, locations);
+    }
+
+
+    /***
+     * 从key里返回所有给定位置元素的位置（经度和纬度）。
+     * Redis命令： GEOPOS key member [member ...]
+     * @param key redis的key
+     * @param memberList 坐标名称（标识）的集合
+     */
+    public List<Point> geoGet(String key, List<String> memberList) {
+        return redisTemplate.opsForGeo().position(key, memberList);
     }
 
 
     /***
      * 【获取两个坐标之间的距离】
      * 根据redis中键名（key）中，名字为 name1 和 name2 两个坐标的距离
+     * Redis命令： GEODIST key member1 member2 [unit]
+     * unit:
+     * - m：表示单位为米
+     * - km：表示单位为千米
+     * - mi：表示单位为英里
+     * - ft：表示单位为英尺
      * @param key redis的key
      * @param name1 坐标名称(标识)1
      * @param name2 坐标名称（标识）2
      * @return distance(单位米)
      */
     public double geoGetDistance(String key, String name1, String name2) {
-        double distance = redisTemplate.opsForGeo()
+        return redisTemplate.opsForGeo()
                 .distance(key, name1, name2, RedisGeoCommands.DistanceUnit.METERS).getValue();
-        return distance;
     }
 
 
@@ -688,6 +713,16 @@ public class RedisUtils {
      * 【获取指定范围内的坐标】
      * 以给定的经纬度为中心画圆， 返回键（key）包含的位置元素当中，
      * 与中心的距离不超过给定最大距离的所有位置元素，并给出所有位置元素与中心的平均距离。
+     * Redis命令： GEORADIUS key longitude latitude radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [ASC|DESC] [COUNT count]
+     * - key longitude latitude： 是前置条件，给定的经纬度信息，以及我要搜索的key
+     * - radius ：距离半径，指的搜索的范围
+     * - m|km|ft|mi： 为给定的距离单位，有 米、千米、英尺、英里 4种
+     * - [WITHCOORD] [WITHDIST] [WITHHASH]： 为返回的信息类型
+     * - WITHDIST： 在返回位置元素的同时， 将位置元素与中心之间的距离也一并返回。距离的单位和用户给定的范围单位保持一致。
+     * - WITHCOORD： 将位置元素的经度和维度也一并返回。
+     * - WITHHASH： 以 52 位有符号整数的形式， 返回位置元素经过原始 geohash 编码的有序集合分值。这个选项主要用于底层应用或者调试， 实际中的作用并不大。
+     * - ASC|DESC ：可选参数，按照距离升序或者降序排列，即 由近到远（asc） 还是 由远到近（desc）
+     * - COUNT count：取数数量，避免获取到太多的信息，返回太多信息
      * @param key redis的key
      * @param longitude   经度
      * @param latitude   纬度
@@ -708,8 +743,7 @@ public class RedisUtils {
         if (count > 0) {
             args.limit(count);
         }
-        GeoResults<RedisGeoCommands.GeoLocation<Object>> radius = redisTemplate.opsForGeo().radius(key, circle, args);
-        return radius;
+        return redisTemplate.opsForGeo().radius(key, circle, args);
     }
 
     /***
@@ -723,9 +757,9 @@ public class RedisUtils {
      * @return
      */
     public GeoResults<RedisGeoCommands.GeoLocation<Object>> geoGetCoordinatesWithinRange(String key,
-                                                                           String name,
-                                                                           Integer distance,
-                                                                           Integer count) {
+                                                                                         String name,
+                                                                                         Integer distance,
+                                                                                         Integer count) {
         // 创建距离对象
         Distance distances = new Distance(distance, RedisGeoCommands.DistanceUnit.METERS);
         // 需要从redis获取的参数
@@ -734,10 +768,26 @@ public class RedisUtils {
         if (count > 0) {
             args.limit(count);
         }
-        GeoResults<RedisGeoCommands.GeoLocation<Object>> radius = redisTemplate.opsForGeo()
-                .radius(key, name, distances, args);
-        return radius;
+        return redisTemplate.opsForGeo().radius(key, name, distances, args);
     }
 
+    /**
+     * 经纬度范围业务数据
+     */
+    @Data
+    private static class BizGeoLocation {
+        /**
+         * 业务唯一标识
+         */
+        private String bizKey;
+        /**
+         * 经度
+         */
+        private Double longitude;
+        /**
+         * 纬度
+         */
+        private Double latitude;
+    }
 
 }

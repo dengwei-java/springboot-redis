@@ -1,4 +1,4 @@
-package com.dw.study.ApiIdepotent.MyConfig;
+package com.dw.study.config;
 
 
 import com.dw.study.ApiIdepotent.MyIntercepters.ApiIdempotentInterceptor;
